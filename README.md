@@ -1,6 +1,7 @@
 # Kaki.Watcher
 
 A [Weaver](https://github.com/ByronMayne/Weaver) plugin to implement [Vue's internal observer](https://github.com/vuejs/vue/tree/dev/src/core/observer).
+The core concept is basically try to inject IL into the property that work with [watcher](https://github.com/thammin/kaki-watcher/blob/master/Runtime/Watcher.cs). The watcher will manage to collect the correct dependencies and subscribe to their changes.
 
 !! Experimental !!
 
