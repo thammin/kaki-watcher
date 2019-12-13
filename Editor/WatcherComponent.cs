@@ -116,6 +116,26 @@ namespace Kaki.Weaver
             var field = new FieldDefinition($"{propertyDefinition.Name}__watcher", FieldAttributes.Private, watcherType);
             _typeDefinition.Fields.Add(field);
 
+            // Func<> ctor
+            var getterFuncCtor = module
+                .ImportReference(getterFuncType.Resolve().GetMethod(".ctor"))
+                .MakeGeneric(propertyType);
+
+            // watcher ctor
+            var watcherCtor = module
+                .ImportReference(watcherType.Resolve().GetMethod(".ctor"))
+                .MakeGeneric(propertyType);
+
+            // watcher option
+            var watcherOption = module.ImportReference(watcherOptionType);
+            // lazy field
+            var watcherLazyField = module.ImportReference(
+                watcherOptionType
+                    .Resolve()
+                    .Fields
+                    .First(f => f.Name == "lazy")
+            );
+
             // clone getter method
             var getterMethod = new MethodDefinition($"{getter.Name}__backingMethod", MethodAttributes.Private, propertyType);
             getterMethod.Body.MaxStackSize = getter.Body.MaxStackSize;
@@ -143,27 +163,9 @@ namespace Kaki.Weaver
                     getter.Body.Variables.Remove(v);
                 }
 
-                // Func<> ctor
-                var getterFuncCtor = module
-                    .ImportReference(getterFuncType.Resolve().GetMethod(".ctor"))
-                    .MakeGeneric(propertyType);
-
-                // watcher ctor
-                var watcherCtor = module
-                    .ImportReference(watcherType.Resolve().GetMethod(".ctor"))
-                    .MakeGeneric(propertyType);
-
-                // watcher option
-                var watcherOption = module.ImportReference(watcherOptionType);
+                // watcher variable
                 var watcherVariable = new VariableDefinition(watcherOption);
                 getter.Body.Variables.Add(watcherVariable);
-                // lazy field
-                var watcherLazyField = module.ImportReference(
-                    watcherOptionType
-                        .Resolve()
-                        .Fields
-                        .First(f => f.Name == "lazy")
-                );
 
                 // watcher Get
                 var watcherGet = module
@@ -186,16 +188,14 @@ namespace Kaki.Weaver
                 proc.Append(proc.Create(OpCodes.Ldftn, getterMethod));
                 proc.Append(proc.Create(OpCodes.Newobj, getterFuncCtor));
                 proc.Append(proc.Create(OpCodes.Ldnull));
-
-                // proc.Append(proc.Create(OpCodes.Ldarg_0));
+                //
                 proc.Append(proc.Create(OpCodes.Ldloca_S, watcherVariable));
                 proc.Append(proc.Create(OpCodes.Initobj, watcherOption));
                 proc.Append(proc.Create(OpCodes.Ldloca_S, watcherVariable));
                 proc.Append(proc.Create(isReactive ? OpCodes.Ldc_I4_0 : OpCodes.Ldc_I4_1));
                 proc.Append(proc.Create(OpCodes.Stfld, watcherLazyField));
                 proc.Append(proc.Create(OpCodes.Ldloc_S, watcherVariable));
-
-                // proc.Append(proc.Create(isReactive ? OpCodes.Ldc_I4_0 : OpCodes.Ldc_I4_1));
+                //
                 proc.Append(proc.Create(OpCodes.Newobj, watcherCtor));
                 proc.Append(proc.Create(OpCodes.Stfld, field));
 
@@ -207,19 +207,19 @@ namespace Kaki.Weaver
                 proc.Append(proc.Create(OpCodes.Ret));
             }
 
+            if (!isReactive || setter == null) return;
+
+            // clone setter method
+            var setterMethod = new MethodDefinition($"{setter.Name}__backingMethod", MethodAttributes.Private, typeSystem.Void);
+            setterMethod.Body.MaxStackSize = setter.Body.MaxStackSize;
+            setterMethod.Body.InitLocals = setter.Body.InitLocals;
+            setterMethod.Body.LocalVarToken = setter.Body.LocalVarToken;
+            _typeDefinition.Methods.Add(setterMethod);
+
             //
             // setter
             //
             {
-                if (!isReactive || setter == null) return;
-
-                // clone setter method
-                var setterMethod = new MethodDefinition($"{setter.Name}__backingMethod", MethodAttributes.Private, typeSystem.Void);
-                setterMethod.Body.MaxStackSize = setter.Body.MaxStackSize;
-                setterMethod.Body.InitLocals = setter.Body.InitLocals;
-                setterMethod.Body.LocalVarToken = setter.Body.LocalVarToken;
-                _typeDefinition.Methods.Add(setterMethod);
-
                 var backingProc = setterMethod.Body.GetILProcessor();
                 var proc = setter.Body.GetILProcessor();
 
@@ -240,19 +240,50 @@ namespace Kaki.Weaver
                     setterMethod.Parameters.Add(p);
                 }
 
+                // watcher variable
+                var watcherVariable = new VariableDefinition(watcherOption);
+                setter.Body.Variables.Add(watcherVariable);
+
                 // watcher NotifyDeps
                 var watcherNotify = module
                     .ImportReference(watcherType.Resolve().GetMethod("NotifyDeps"))
                     .MakeGeneric(propertyType);
 
-                var jumpTo = proc.Create(OpCodes.Nop);
+                var jumpTo1 = proc.Create(OpCodes.Nop);
+                var jumpTo2 = proc.Create(OpCodes.Nop);
+
+                // if (watcher == null)
+                proc.Append(proc.Create(OpCodes.Nop));
+                proc.Append(proc.Create(OpCodes.Ldarg_0));
+                proc.Append(proc.Create(OpCodes.Ldfld, field));
+                proc.Append(proc.Create(OpCodes.Ldnull));
+                proc.Append(proc.Create(OpCodes.Ceq));
+                proc.Append(proc.Create(OpCodes.Brfalse_S, jumpTo1));
+
+                // watcher = new Watcher<T>(getter, null, new WatcherOption() { lazy = bool })
+                proc.Append(proc.Create(OpCodes.Ldarg_0));
+                proc.Append(proc.Create(OpCodes.Ldarg_0));
+                proc.Append(proc.Create(OpCodes.Ldftn, getterMethod));
+                proc.Append(proc.Create(OpCodes.Newobj, getterFuncCtor));
+                proc.Append(proc.Create(OpCodes.Ldnull));
+                //
+                proc.Append(proc.Create(OpCodes.Ldloca_S, watcherVariable));
+                proc.Append(proc.Create(OpCodes.Initobj, watcherOption));
+                proc.Append(proc.Create(OpCodes.Ldloca_S, watcherVariable));
+                proc.Append(proc.Create(isReactive ? OpCodes.Ldc_I4_0 : OpCodes.Ldc_I4_1));
+                proc.Append(proc.Create(OpCodes.Stfld, watcherLazyField));
+                proc.Append(proc.Create(OpCodes.Ldloc_S, watcherVariable));
+                //
+                proc.Append(proc.Create(OpCodes.Newobj, watcherCtor));
+                proc.Append(proc.Create(OpCodes.Stfld, field));
 
                 // if (getter() != value)
+                proc.Append(jumpTo1);
                 proc.Append(proc.Create(OpCodes.Ldarg_0));
                 proc.Append(proc.Create(OpCodes.Callvirt, getterMethod));
                 proc.Append(proc.Create(OpCodes.Ldarg_1));
                 proc.Append(proc.Create(OpCodes.Ceq));
-                proc.Append(proc.Create(OpCodes.Brtrue_S, jumpTo));
+                proc.Append(proc.Create(OpCodes.Brtrue_S, jumpTo2));
 
                 // setter(value);
                 // watcher.NotifyDeps();
@@ -264,7 +295,7 @@ namespace Kaki.Weaver
                 proc.Append(proc.Create(OpCodes.Callvirt, watcherNotify));
 
                 // return;
-                proc.Append(jumpTo);
+                proc.Append(jumpTo2);
                 proc.Append(proc.Create(OpCodes.Ret));
             }
         }

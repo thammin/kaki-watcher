@@ -28,11 +28,19 @@ namespace Kaki.Watcher
             _getter = getter;
             _lazy = option.lazy;
             _dirty = _lazy;
-            _cb = cb;
 
-            if (option.immediate)
+            if (cb != null)
             {
-                Get();
+                if (option.immediate)
+                {
+                    _cb = cb;
+                    Get();
+                }
+                else
+                {
+                    Get();
+                    _cb = cb;
+                }
             }
         }
 
