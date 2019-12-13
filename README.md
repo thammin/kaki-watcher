@@ -57,6 +57,12 @@ via Package Manager UI
 ssh://git@github.com/thammin/kaki-watcher.git
 ```
 
+### Dependency
+
+https://github.com/ByronMayne/Weaver
+
+Follow the intruction to install weaver and select this plugin.
+
 # License
 
 MIT
