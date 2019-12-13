@@ -49,6 +49,35 @@ public class Example : MonoBehaviour
 }
 ```
 
+### Watcher
+
+```cs
+using Kaki.Watcher;
+
+public class Example : MonoBehaviour
+{
+    [Reactive]
+    public string Name { get; set; }
+
+    public void Start()
+    {
+        var watcher = new Watcher<string>(() => Name, (newValue, oldValue) =>
+        {
+            Debug.Log($"{oldValue} -> {newValue}");
+        });
+
+        Name = "John";
+        // Log: "null -> John"
+
+        Name = "Johny";
+        // Log: "John -> Johny"
+
+        Name = "Johny";
+        // Log nothing because the value is not changing
+    }
+}
+```
+
 # Install
 
 via Package Manager UI
