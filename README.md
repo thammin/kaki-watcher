@@ -94,6 +94,12 @@ https://github.com/ByronMayne/Weaver
 
 Follow the intruction to install weaver and select this plugin.
 
+# TODO
+
+-   Buffer all notify updates to next tick
+-   Add unique id to every watcher to prevent duplicate update
+-   Dependencies and subscribers clean up when disposed
+
 # License
 
 MIT
