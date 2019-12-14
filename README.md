@@ -5,6 +5,8 @@ The core concept is basically try to inject IL into the property that work with 
 
 !! Experimental !!
 
+[Japanese Introduction](https://qiita.com/thammin/items/d0afe0c4e04512d8673f)
+
 ### Example
 
 ```cs
